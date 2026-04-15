@@ -25,11 +25,10 @@ allowed-tools: Bash
 2. 确认信息无误后，运行以下命令：
 
 ```bash
-python "d:\ORCproject\claude-workspace\.claude\skills\dingtalk-send-file\send_file.py" \
-  --file "<文件路径>" \
-  --target-type <user|chat> \
-  --target-id <userid或chatid>
+python "$SKILL_DIR/send_file.py" --file "<文件路径>" --target-type <user|chat> --target-id <userid或chatid>
 ```
+
+`$SKILL_DIR` 由 OpenClaw 自动注入，指向本 skill 所在目录。
 
 3. 解读脚本输出，告知用户发送结果。如果失败，根据错误码给出建议。
 

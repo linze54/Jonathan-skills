@@ -27,12 +27,10 @@ allowed-tools: Bash
 2. 确认信息后，运行脚本：
 
 ```bash
-python "d:\ORCproject\claude-workspace\.claude\skills\dingtalk-get-attendance\get_attendance.py" \
-  --date-from <开始日期> \
-  --date-to <结束日期> \
-  [--userids <userid1,userid2,...>] \
-  [--output <输出文件路径.csv>]
+python "$SKILL_DIR/get_attendance.py" --date-from <开始日期> --date-to <结束日期> --userids <userid1,userid2,...> --output <输出文件路径.csv>
 ```
+
+`--userids` 和 `--output` 为可选参数，不需要时直接省略。`$SKILL_DIR` 由 OpenClaw 自动注入，指向本 skill 所在目录。
 
 3. 脚本会分批拉取（每批最多 50 人 × 31 天），完成后输出 CSV 文件路径和记录总数。
 
