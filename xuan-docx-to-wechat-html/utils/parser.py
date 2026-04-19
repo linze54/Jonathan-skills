@@ -23,6 +23,11 @@ _SECTION_HEADER = re.compile(r"[：:]$")
 _DATE_PATTERN = re.compile(r"\d{4}[年/-]\d{1,2}[月/-]\d{1,2}")
 _ORG_PATTERN = re.compile(r"(社区|街道|委员会|志愿|协会|中心|办事处|党委|居委)")
 
+# 眉题/栏目标识词：短小居中加粗，但不是真正的文章标题
+_EYEBROW_WORDS = re.compile(
+    r"^(活动简报|工作简报|社区简报|活动通讯|工作通讯|简报|通讯|公告|通知|新闻|资讯|动态|快讯|特刊|专刊|第.{1,4}期)$"
+)
+
 
 def _get_text(para_elem) -> str:
     parts = []
@@ -99,17 +104,23 @@ def _classify_text_para(text, para_elem, doc, para_index) -> dict:
     bold = _is_bold(para_elem)
     length = len(text)
 
-    # Heading: style name or (centered + bold + short)
+    # Heading: style name
     if "heading" in style_name or "标题" in style_name:
         level = 1
         for i in range(1, 7):
             if str(i) in style_name:
                 level = i
                 break
+        # 眉题用 heading 样式但内容是分类词 → 降级为 meta
+        if _EYEBROW_WORDS.match(text):
+            return {"kind": "meta", "text": text}
         return {"kind": "heading", "text": text, "level": level, "bold": bold, "centered": centered}
 
+    # centered + bold + short → heading candidate，但眉题降级为 meta
     if centered and bold and length <= 30 and para_index < 10:
-        return {"kind": "heading", "text": text, "level": 2, "bold": True, "centered": True}
+        if _EYEBROW_WORDS.match(text):
+            return {"kind": "meta", "text": text}
+        return {"kind": "heading", "text": text, "level": 2, "bold": True, "centered": centered}
 
     # Meta: early paragraphs, centered, with date/org or very short
     if para_index < 8 and centered and (
@@ -129,6 +140,43 @@ def _classify_text_para(text, para_elem, doc, para_index) -> dict:
         return {"kind": "caption_candidate", "text": text, "para_index": para_index}
 
     return {"kind": "body", "text": text, "bold": bold, "centered": centered}
+
+
+def _extract_table_elements(tbl_elem, para_index):
+    """
+    提取表格中的图片和文字。
+    Word 中"两图一行"通常用 2 列表格实现。
+    同一行的多张图片标记 same_row=True。
+    """
+    elements = []
+    for row in tbl_elem.iter(qn("w:tr")):
+        row_images = []
+        row_texts = []
+        for cell in row.iter(qn("w:tc")):
+            # 提取单元格内图片
+            cell_imgs = _extract_images_from_para(cell)
+            # 提取单元格内文字（跨所有段落）
+            cell_text = " ".join(
+                t.text or "" for t in cell.iter(qn("w:t"))
+            ).strip()
+            if cell_imgs:
+                row_images.extend(cell_imgs)
+            elif cell_text:
+                row_texts.append(cell_text)
+
+        if row_images:
+            # 同一行多图 → same_row=True
+            same_row = len(row_images) > 1
+            for img in row_images:
+                img["kind"] = "image"
+                img["para_index"] = para_index
+                img["same_row"] = same_row
+                elements.append(img)
+        elif row_texts:
+            combined = "　".join(row_texts)
+            elements.append({"kind": "body", "text": combined, "bold": False, "centered": False})
+
+    return elements
 
 
 def parse_document(doc_path: str) -> list:
@@ -153,7 +201,6 @@ def parse_document(doc_path: str) -> list:
             text = _get_text(para_elem)
 
             if images and text:
-                # paragraph has both text and images: text first, then images
                 text_elem = _classify_text_para(text, para_elem, doc, para_index)
                 elements.append(text_elem)
                 for img in images:
@@ -172,17 +219,8 @@ def parse_document(doc_path: str) -> list:
             para_index += 1
 
         elif local == "tbl":
-            # Table: extract cell text as body paragraphs
-            for row in child.iter(qn("w:tr")):
-                row_texts = []
-                for cell in row.iter(qn("w:tc")):
-                    cell_text = " ".join(
-                        t.text or "" for t in cell.iter(qn("w:t"))
-                    ).strip()
-                    if cell_text:
-                        row_texts.append(cell_text)
-                if row_texts:
-                    elements.append({"kind": "body", "text": "　".join(row_texts), "bold": False, "centered": False})
+            tbl_elements = _extract_table_elements(child, para_index)
+            elements.extend(tbl_elements)
             para_index += 1
 
     return elements
