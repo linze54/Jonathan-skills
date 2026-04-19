@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-html_renderer.py — 将内容块渲染为微信兼容的 HTML 片段
+html_renderer.py — 将内容块渲染为完整 HTML 页面（微信公众号兼容）
 
-输出是文章正文片段，不是完整网页（无 html/head/body 标签）。
-所有样式内联，不依赖外链 CSS，不使用 JS。
+输出是完整 HTML 页面，所有样式内联，不依赖外链 CSS，不使用 JS。
 """
 
 import html as html_lib
@@ -14,15 +13,38 @@ def _esc(text: str) -> str:
     return html_lib.escape(str(text or ""), quote=False)
 
 
+_HTML_HEAD = """\
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{title}</title>
+</head>
+<body style="margin:0;padding:0;background:#f5f5f5;">
+"""
+
+_HTML_FOOT = """\
+</body>
+</html>"""
+
+
 def render_html(blocks: list, style: dict) -> str:
     """
     blocks: structure_builder 输出的内容块列表
     style: community_wechat_brief_style.get_styles() 返回的样式字典
-    返回 HTML 字符串（文章片段）。
+    返回完整 HTML 页面字符串。
     """
-    parts = []
     s = style
 
+    # 提取标题用于 <title>
+    page_title = ""
+    for b in blocks:
+        if b.get("type") == "title":
+            page_title = b.get("text", "")
+            break
+
+    parts = [_HTML_HEAD.format(title=_esc(page_title or "文章"))]
     parts.append(f'<section style="{s["wrap"]}">')
 
     for block in blocks:
@@ -41,6 +63,13 @@ def render_html(blocks: list, style: dict) -> str:
                 for line in block.get("lines", [])
             )
             parts.append(f'<div style="{s["meta_wrap"]}">{lines_html}</div>')
+
+        elif btype == "summary":
+            parts.append(
+                f'<div style="{s["summary_block"]}">'
+                f'<p style="{s["summary_text"]}">{_esc(block["text"])}</p>'
+                f'</div>'
+            )
 
         elif btype == "body":
             paras = block.get("paragraphs", [])
@@ -100,9 +129,12 @@ def render_html(blocks: list, style: dict) -> str:
         elif btype == "end":
             parts.append(
                 f'<div style="{s["end_block"]}">'
-                f'<span style="{s["end_text"]}">— END —</span>'
+                f'<span style="{s["end_star"]}">★ </span>'
+                f'<span style="{s["end_text"]}">END</span>'
+                f'<span style="{s["end_star"]}"> ★</span>'
                 f'</div>'
             )
 
     parts.append("</section>")
+    parts.append(_HTML_FOOT)
     return "\n".join(parts)

@@ -3,7 +3,7 @@
 """
 community_wechat_brief_style.py — 社区活动简报风格
 
-低饱和暖色系，分块文案排版，微信兼容内联样式。
+低饱和暖色系，微信公众号图文风格，内联样式。
 """
 
 
@@ -13,21 +13,21 @@ def get_styles() -> dict:
         "wrap": (
             "max-width:680px;"
             "margin:0 auto;"
-            "padding:16px 12px;"
+            "padding:16px 12px 32px 12px;"
             "font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;"
-            "background:#faf8f5;"
+            "background:#ffffff;"
             "color:#3d3530;"
         ),
 
         # 标题区
         "title_wrap": (
             "text-align:center;"
-            "padding:24px 8px 8px 8px;"
+            "padding:28px 8px 12px 8px;"
         ),
         "title": (
-            "font-size:20px;"
+            "font-size:22px;"
             "font-weight:bold;"
-            "color:#2c2420;"
+            "color:#1a1a1a;"
             "line-height:1.6;"
             "margin:0 0 8px 0;"
             "letter-spacing:1px;"
@@ -37,36 +37,51 @@ def get_styles() -> dict:
         "meta_wrap": (
             "text-align:center;"
             "padding:4px 8px 20px 8px;"
-            "border-bottom:1px solid #e8ddd0;"
-            "margin-bottom:16px;"
+            "border-bottom:1px solid #eeeeee;"
+            "margin-bottom:20px;"
         ),
         "meta_line": (
             "font-size:13px;"
-            "color:#9e8e82;"
+            "color:#aaaaaa;"
             "line-height:2;"
         ),
 
-        # 正文块
-        "body_block": (
-            "background:#fdf6ee;"
-            "border:1px solid #e8ddd0;"
-            "border-radius:4px;"
+        # 导语卡片
+        "summary_block": (
+            "background:#fff9f0;"
+            "border-left:4px solid #c0392b;"
+            "border-radius:0 4px 4px 0;"
             "padding:14px 16px;"
-            "margin-bottom:14px;"
+            "margin-bottom:20px;"
+        ),
+        "summary_text": (
+            "font-size:15px;"
+            "line-height:1.9;"
+            "color:#3d3530;"
+            "margin:0;"
+            "font-style:italic;"
+        ),
+
+        # 正文块（白底，无边框卡片）
+        "body_block": (
+            "background:#ffffff;"
+            "padding:0 4px;"
+            "margin-bottom:12px;"
         ),
         "body_para": (
             "font-size:15px;"
             "line-height:1.9;"
             "color:#3d3530;"
-            "margin:0 0 10px 0;"
+            "margin:0 0 12px 0;"
             "text-indent:2em;"
         ),
         "body_bold": (
-            "font-size:15px;"
-            "line-height:1.9;"
-            "color:#2c2420;"
+            "font-size:16px;"
+            "line-height:1.8;"
+            "color:#1a1a1a;"
             "font-weight:bold;"
-            "margin:0 0 8px 0;"
+            "margin:16px 0 8px 0;"
+            "text-indent:0;"
         ),
         "body_centered": (
             "font-size:15px;"
@@ -79,8 +94,8 @@ def get_styles() -> dict:
         # 单图块
         "image_block": (
             "text-align:center;"
-            "margin:16px 0;"
-            "padding:0 4px;"
+            "margin:20px 0;"
+            "padding:0;"
         ),
         "image": (
             "display:inline-block;"
@@ -92,16 +107,16 @@ def get_styles() -> dict:
         # 图注
         "caption": (
             "font-size:12px;"
-            "color:#9e8e82;"
+            "color:#aaaaaa;"
             "text-align:center;"
             "margin:6px 0 0 0;"
             "line-height:1.6;"
         ),
 
-        # 宫格图块
+        # 宫格图块（双图并排）
         "gallery_block": (
-            "margin:16px 0;"
-            "padding:0 4px;"
+            "margin:20px 0;"
+            "padding:0;"
         ),
         "gallery_row": (
             "display:flex;"
@@ -120,16 +135,23 @@ def get_styles() -> dict:
             "border-radius:4px;"
         ),
 
-        # 文末收束区
+        # 文末收束区（红底白字）
         "end_block": (
             "text-align:center;"
-            "padding:20px 0 12px 0;"
-            "margin-top:20px;"
-            "border-top:1px solid #e8ddd0;"
+            "padding:18px 0 18px 0;"
+            "margin-top:32px;"
+            "background:#c0392b;"
+            "border-radius:4px;"
         ),
         "end_text": (
-            "font-size:13px;"
-            "color:#c0392b;"
-            "letter-spacing:3px;"
+            "font-size:14px;"
+            "color:#ffffff;"
+            "letter-spacing:4px;"
+            "font-weight:bold;"
+        ),
+        "end_star": (
+            "font-size:14px;"
+            "color:#f1c40f;"
+            "letter-spacing:2px;"
         ),
     }
