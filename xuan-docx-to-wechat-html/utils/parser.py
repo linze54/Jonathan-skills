@@ -23,15 +23,6 @@ _SECTION_HEADER = re.compile(r"[：:]$")
 _DATE_PATTERN = re.compile(r"\d{4}[年/-]\d{1,2}[月/-]\d{1,2}")
 _ORG_PATTERN = re.compile(r"(社区|街道|委员会|志愿|协会|中心|办事处|党委|居委)")
 
-# 眉题/栏目标识词：这类短文本是分类标签，不是真正的文章标题
-_EYEBROW_WORDS = re.compile(
-    r"^(活动简报|工作简报|社区简报|活动通讯|工作通讯|简报|通讯|公告|通知|新闻|资讯|动态|快讯|特刊|专刊)$"
-)
-
-# 真实标题特征：含引号、活动关键词、或足够长
-_TITLE_KEYWORDS = re.compile(r"(活动|圆满|举行|开展|举办|成功|顺利|完成|结束|启动|开幕|闭幕)")
-_CHINESE_QUOTES = re.compile(r"[「」『』""《》]")
-
 
 def _get_text(para_elem) -> str:
     parts = []
@@ -99,22 +90,6 @@ def _extract_images_from_para(para_elem):
     return images
 
 
-def _is_eyebrow_title(text: str) -> bool:
-    """判断是否为眉题/栏目标识（不是真正的文章标题）。"""
-    return bool(_EYEBROW_WORDS.match(text.strip()))
-
-
-def _looks_like_real_title(text: str, length: int) -> bool:
-    """判断文本是否具有真实文章标题的特征。"""
-    if length >= 15:
-        return True
-    if _CHINESE_QUOTES.search(text):
-        return True
-    if _TITLE_KEYWORDS.search(text):
-        return True
-    return False
-
-
 def _classify_text_para(text, para_elem, doc, para_index) -> dict:
     if not text:
         return {"kind": "empty"}
@@ -124,27 +99,17 @@ def _classify_text_para(text, para_elem, doc, para_index) -> dict:
     bold = _is_bold(para_elem)
     length = len(text)
 
-    # Heading: style name
+    # Heading: style name or (centered + bold + short)
     if "heading" in style_name or "标题" in style_name:
         level = 1
         for i in range(1, 7):
             if str(i) in style_name:
                 level = i
                 break
-        # 眉题用 heading 样式但内容是分类词 → 降级为 meta
-        if level == 1 and _is_eyebrow_title(text):
-            return {"kind": "meta", "text": text}
         return {"kind": "heading", "text": text, "level": level, "bold": bold, "centered": centered}
 
-    # centered + bold + short → heading candidate
     if centered and bold and length <= 30 and para_index < 10:
-        # 眉题：短、居中、加粗但是分类词 → meta
-        if _is_eyebrow_title(text):
-            return {"kind": "meta", "text": text}
-        # 短文本但不像真实标题 → meta（如"第X期"、"2024年X月"）
-        if length <= 8 and not _looks_like_real_title(text, length):
-            return {"kind": "meta", "text": text}
-        return {"kind": "heading", "text": text, "level": 2, "bold": True, "centered": centered}
+        return {"kind": "heading", "text": text, "level": 2, "bold": True, "centered": True}
 
     # Meta: early paragraphs, centered, with date/org or very short
     if para_index < 8 and centered and (
@@ -188,6 +153,7 @@ def parse_document(doc_path: str) -> list:
             text = _get_text(para_elem)
 
             if images and text:
+                # paragraph has both text and images: text first, then images
                 text_elem = _classify_text_para(text, para_elem, doc, para_index)
                 elements.append(text_elem)
                 for img in images:
@@ -206,6 +172,7 @@ def parse_document(doc_path: str) -> list:
             para_index += 1
 
         elif local == "tbl":
+            # Table: extract cell text as body paragraphs
             for row in child.iter(qn("w:tr")):
                 row_texts = []
                 for cell in row.iter(qn("w:tc")):
