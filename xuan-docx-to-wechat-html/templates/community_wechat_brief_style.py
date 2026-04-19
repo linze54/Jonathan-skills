@@ -46,6 +46,22 @@ def get_styles() -> dict:
             "line-height:2;"
         ),
 
+        # 活动总述卡片（summary）
+        "summary_block": (
+            "background:#fdf6ee;"
+            "border-left:3px solid #c0392b;"
+            "border-radius:0 4px 4px 0;"
+            "padding:14px 16px;"
+            "margin-bottom:16px;"
+        ),
+        "summary_text": (
+            "font-size:15px;"
+            "line-height:1.9;"
+            "color:#3d3530;"
+            "margin:0 0 10px 0;"
+            "text-indent:2em;"
+        ),
+
         # 正文块
         "body_block": (
             "background:#fdf6ee;"

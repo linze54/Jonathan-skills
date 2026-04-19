@@ -42,6 +42,16 @@ def render_html(blocks: list, style: dict) -> str:
             )
             parts.append(f'<div style="{s["meta_wrap"]}">{lines_html}</div>')
 
+        elif btype == "summary":
+            paras = block.get("paragraphs", [])
+            if not paras:
+                continue
+            inner = "".join(
+                f'<p style="{s["summary_text"]}">{_esc(p["text"])}</p>'
+                for p in paras
+            )
+            parts.append(f'<div style="{s["summary_block"]}">{inner}</div>')
+
         elif btype == "body":
             paras = block.get("paragraphs", [])
             if not paras:

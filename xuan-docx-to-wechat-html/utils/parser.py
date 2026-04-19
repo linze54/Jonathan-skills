@@ -2,9 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 parser.py — 按文档 XML 顺序构建统一线性元素序列
-
-每个元素是一个 dict，kind 字段为：
-  heading / meta / body / image / caption_candidate / empty
 """
 
 import re
@@ -21,9 +18,7 @@ _BODY_OPENERS = re.compile(
 )
 _SECTION_HEADER = re.compile(r"[：:]$")
 _DATE_PATTERN = re.compile(r"\d{4}[年/-]\d{1,2}[月/-]\d{1,2}")
-_ORG_PATTERN = re.compile(r"(社区|街道|委员会|志愿|协会|中心|办事处|党委|居委)")
-
-# 眉题/栏目标识词：不是真正的文章标题
+_ORG_PATTERN = re.compile(r"(社区|街道|委员会|志愿|协会|中心|办事处|党委|居委|服务中心|工作中心)")
 _EYEBROW_WORDS = re.compile(
     r"^(活动简报|工作简报|社区简报|活动通讯|工作通讯|简报|通讯|公告|通知|新闻|资讯|动态|快讯|特刊|专刊|第.{1,4}期)$"
 )
@@ -103,7 +98,6 @@ def _classify_text_para(text, para_elem, doc, para_index) -> dict:
     bold = _is_bold(para_elem)
     length = len(text)
 
-    # Heading: style name
     if "heading" in style_name or "标题" in style_name:
         level = 1
         for i in range(1, 7):
@@ -114,13 +108,16 @@ def _classify_text_para(text, para_elem, doc, para_index) -> dict:
             return {"kind": "meta", "text": text}
         return {"kind": "heading", "text": text, "level": level, "bold": bold, "centered": centered}
 
-    # centered + bold + short → heading candidate，眉题降级为 meta
     if centered and bold and length <= 30 and para_index < 10:
         if _EYEBROW_WORDS.match(text):
             return {"kind": "meta", "text": text}
         return {"kind": "heading", "text": text, "level": 2, "bold": True, "centered": centered}
 
-    # Meta: early paragraphs, centered, with date/org or very short
+    # 机构名+日期组合，无论位置都视为 meta
+    if _DATE_PATTERN.search(text) and _ORG_PATTERN.search(text):
+        return {"kind": "meta", "text": text}
+
+    # 早期居中段落：日期、机构名、或极短文本
     if para_index < 8 and centered and (
         _DATE_PATTERN.search(text) or _ORG_PATTERN.search(text) or length <= 20
     ):
@@ -128,7 +125,7 @@ def _classify_text_para(text, para_elem, doc, para_index) -> dict:
 
     # Caption candidate
     if (
-        length <= 40
+        length <= 50
         and not bold
         and not _BODY_OPENERS.match(text)
         and not _SECTION_HEADER.search(text)
@@ -143,8 +140,7 @@ def _classify_text_para(text, para_elem, doc, para_index) -> dict:
 def _extract_table_elements(tbl_elem, doc, para_index_start: int):
     """
     提取表格中的图片和文字，每行独立编号。
-    Word 中"两图一行"通常用 2 列表格实现，同行图片标记 same_row=True。
-    返回 (elements, next_para_index)。
+    同行图片标记 same_row=True；单元格内图片下方的文字作为该图片的 caption。
     """
     elements = []
     para_index = para_index_start
@@ -158,7 +154,12 @@ def _extract_table_elements(tbl_elem, doc, para_index_start: int):
             cell_text = " ".join(
                 t.text or "" for t in cell.iter(qn("w:t"))
             ).strip()
+
             if cell_imgs:
+                # 单元格内同时有图片和文字：文字作为该图片的 caption
+                caption = cell_text if cell_text else None
+                for img in cell_imgs:
+                    img["cell_caption"] = caption
                 row_images.extend(cell_imgs)
             elif cell_text:
                 row_texts.append(cell_text)
@@ -169,6 +170,11 @@ def _extract_table_elements(tbl_elem, doc, para_index_start: int):
                 img["kind"] = "image"
                 img["para_index"] = para_index
                 img["same_row"] = same_row
+                # cell_caption 优先作为图注
+                if img.get("cell_caption"):
+                    img["caption"] = img.pop("cell_caption")
+                else:
+                    img.pop("cell_caption", None)
                 elements.append(img)
         elif row_texts:
             combined = "　".join(row_texts)
@@ -180,10 +186,6 @@ def _extract_table_elements(tbl_elem, doc, para_index_start: int):
 
 
 def parse_document(doc_path: str) -> list:
-    """
-    按 XML 顺序构建统一线性元素序列。
-    返回 list of dict，每个 dict 包含 kind 字段。
-    """
     doc = Document(doc_path)
     elements = []
     para_index = 0
