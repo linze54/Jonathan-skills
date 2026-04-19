@@ -23,7 +23,7 @@ _SECTION_HEADER = re.compile(r"[：:]$")
 _DATE_PATTERN = re.compile(r"\d{4}[年/-]\d{1,2}[月/-]\d{1,2}")
 _ORG_PATTERN = re.compile(r"(社区|街道|委员会|志愿|协会|中心|办事处|党委|居委)")
 
-# 眉题/栏目标识词：短小居中加粗，但不是真正的文章标题
+# 眉题/栏目标识词：不是真正的文章标题
 _EYEBROW_WORDS = re.compile(
     r"^(活动简报|工作简报|社区简报|活动通讯|工作通讯|简报|通讯|公告|通知|新闻|资讯|动态|快讯|特刊|专刊|第.{1,4}期)$"
 )
@@ -88,7 +88,6 @@ def _extract_images_from_para(para_elem):
                 break
             parent = parent.getparent()
         images.append({"rel_id": rel_id, "width_emu": width_emu, "height_emu": height_emu})
-
     same_row = len(images) > 1
     for img in images:
         img["same_row"] = same_row
@@ -111,12 +110,11 @@ def _classify_text_para(text, para_elem, doc, para_index) -> dict:
             if str(i) in style_name:
                 level = i
                 break
-        # 眉题用 heading 样式但内容是分类词 → 降级为 meta
         if _EYEBROW_WORDS.match(text):
             return {"kind": "meta", "text": text}
         return {"kind": "heading", "text": text, "level": level, "bold": bold, "centered": centered}
 
-    # centered + bold + short → heading candidate，但眉题降级为 meta
+    # centered + bold + short → heading candidate，眉题降级为 meta
     if centered and bold and length <= 30 and para_index < 10:
         if _EYEBROW_WORDS.match(text):
             return {"kind": "meta", "text": text}
@@ -128,7 +126,7 @@ def _classify_text_para(text, para_elem, doc, para_index) -> dict:
     ):
         return {"kind": "meta", "text": text}
 
-    # Caption candidate: short, no bold, no body-opener, no mid-sentence punctuation
+    # Caption candidate
     if (
         length <= 40
         and not bold
@@ -142,20 +140,21 @@ def _classify_text_para(text, para_elem, doc, para_index) -> dict:
     return {"kind": "body", "text": text, "bold": bold, "centered": centered}
 
 
-def _extract_table_elements(tbl_elem, para_index):
+def _extract_table_elements(tbl_elem, doc, para_index_start: int):
     """
-    提取表格中的图片和文字。
-    Word 中"两图一行"通常用 2 列表格实现。
-    同一行的多张图片标记 same_row=True。
+    提取表格中的图片和文字，每行独立编号。
+    Word 中"两图一行"通常用 2 列表格实现，同行图片标记 same_row=True。
+    返回 (elements, next_para_index)。
     """
     elements = []
+    para_index = para_index_start
+
     for row in tbl_elem.iter(qn("w:tr")):
         row_images = []
         row_texts = []
+
         for cell in row.iter(qn("w:tc")):
-            # 提取单元格内图片
             cell_imgs = _extract_images_from_para(cell)
-            # 提取单元格内文字（跨所有段落）
             cell_text = " ".join(
                 t.text or "" for t in cell.iter(qn("w:t"))
             ).strip()
@@ -165,7 +164,6 @@ def _extract_table_elements(tbl_elem, para_index):
                 row_texts.append(cell_text)
 
         if row_images:
-            # 同一行多图 → same_row=True
             same_row = len(row_images) > 1
             for img in row_images:
                 img["kind"] = "image"
@@ -176,7 +174,9 @@ def _extract_table_elements(tbl_elem, para_index):
             combined = "　".join(row_texts)
             elements.append({"kind": "body", "text": combined, "bold": False, "centered": False})
 
-    return elements
+        para_index += 1
+
+    return elements, para_index
 
 
 def parse_document(doc_path: str) -> list:
@@ -219,8 +219,7 @@ def parse_document(doc_path: str) -> list:
             para_index += 1
 
         elif local == "tbl":
-            tbl_elements = _extract_table_elements(child, para_index)
+            tbl_elements, para_index = _extract_table_elements(child, doc, para_index)
             elements.extend(tbl_elements)
-            para_index += 1
 
     return elements
