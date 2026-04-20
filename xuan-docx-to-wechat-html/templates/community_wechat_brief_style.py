@@ -2,16 +2,14 @@
 # -*- coding: utf-8 -*-
 """
 community_wechat_brief_style.py — 社区活动简报风格
-
-低饱和暖色系，分块文案排版，微信兼容内联样式。
+v2: 微信公众号兼容版，移除 flex/grid，嵌套≤3层，图片 display:block;width:100%
 """
 
 
 def get_styles() -> dict:
     return {
-        # 外层容器
+        # 外层容器（微信控制宽度，不设 max-width）
         "wrap": (
-            "max-width:680px;"
             "margin:0 auto;"
             "padding:16px 12px;"
             "font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;"
@@ -30,7 +28,6 @@ def get_styles() -> dict:
             "color:#2c2420;"
             "line-height:1.6;"
             "margin:0 0 8px 0;"
-            "letter-spacing:1px;"
         ),
 
         # 元信息区
@@ -50,7 +47,6 @@ def get_styles() -> dict:
         "summary_block": (
             "background:#fdf6ee;"
             "border-left:3px solid #c0392b;"
-            "border-radius:0 4px 4px 0;"
             "padding:14px 16px;"
             "margin-bottom:16px;"
         ),
@@ -66,7 +62,6 @@ def get_styles() -> dict:
         "body_block": (
             "background:#fdf6ee;"
             "border:1px solid #e8ddd0;"
-            "border-radius:4px;"
             "padding:14px 16px;"
             "margin-bottom:14px;"
         ),
@@ -92,17 +87,13 @@ def get_styles() -> dict:
             "margin:0 0 8px 0;"
         ),
 
-        # 单图块
+        # 单图块（display:block;width:100% 符合微信规范）
         "image_block": (
-            "text-align:center;"
             "margin:16px 0;"
-            "padding:0 4px;"
         ),
         "image": (
-            "display:inline-block;"
-            "max-width:100%;"
-            "border-radius:4px;"
-            "vertical-align:top;"
+            "display:block;"
+            "width:100%;"
         ),
 
         # 图注
@@ -110,30 +101,35 @@ def get_styles() -> dict:
             "font-size:12px;"
             "color:#9e8e82;"
             "text-align:center;"
-            "margin:6px 0 0 0;"
+            "margin:6px 0 8px 0;"
             "line-height:1.6;"
         ),
 
-        # 宫格图块
-        "gallery_block": (
-            "margin:16px 0;"
-            "padding:0 4px;"
-        ),
+        # 双图并排：inline-block + font-size:0 消除间距（无 flex/grid）
+        # 每行最多2张，超出自动换行
         "gallery_row": (
-            "display:flex;"
-            "flex-wrap:wrap;"
-            "gap:8px;"
-            "justify-content:center;"
-        ),
-        "gallery_item": (
-            "flex:1 1 45%;"
-            "max-width:48%;"
             "text-align:center;"
+            "font-size:0;"
+            "margin:16px 0 4px 0;"
+        ),
+        # 第一张图（无左边距）
+        "gallery_item_first": (
+            "display:inline-block;"
+            "width:49%;"
+            "vertical-align:top;"
+            "font-size:14px;"
+        ),
+        # 第二张图（有左边距）
+        "gallery_item_rest": (
+            "display:inline-block;"
+            "width:49%;"
+            "vertical-align:top;"
+            "font-size:14px;"
+            "margin-left:1%;"
         ),
         "gallery_image": (
             "display:block;"
             "width:100%;"
-            "border-radius:4px;"
         ),
 
         # 文末收束区
@@ -146,6 +142,5 @@ def get_styles() -> dict:
         "end_text": (
             "font-size:13px;"
             "color:#c0392b;"
-            "letter-spacing:3px;"
         ),
     }

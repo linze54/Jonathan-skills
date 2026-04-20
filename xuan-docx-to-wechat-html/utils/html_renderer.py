@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-html_renderer.py — 将内容块渲染为微信兼容的 HTML 片段
-
-输出是文章正文片段，不是完整网页（无 html/head/body 标签）。
-所有样式内联，不依赖外链 CSS，不使用 JS。
+html_renderer.py — 将内容块渲染为微信公众号兼容的 HTML 正文片段
+v2: 移除 flex/grid，嵌套≤3层，图片 display:block;width:100%
+输出是正文片段（无 html/head/body），直接提交微信草稿箱接口。
 """
 
 import html as html_lib
@@ -15,20 +14,17 @@ def _esc(text: str) -> str:
 
 
 def render_html(blocks: list, style: dict) -> str:
-    """
-    blocks: structure_builder 输出的内容块列表
-    style: community_wechat_brief_style.get_styles() 返回的样式字典
-    返回 HTML 字符串（文章片段）。
-    """
     parts = []
     s = style
 
+    # 外层容器（1层）
     parts.append(f'<section style="{s["wrap"]}">')
 
     for block in blocks:
         btype = block.get("type")
 
         if btype == "title":
+            # 层级：section > div > p（3层）
             parts.append(
                 f'<div style="{s["title_wrap"]}">'
                 f'<p style="{s["title"]}">{_esc(block["text"])}</p>'
@@ -46,6 +42,7 @@ def render_html(blocks: list, style: dict) -> str:
             paras = block.get("paragraphs", [])
             if not paras:
                 continue
+            # 层级：section > div > p（3层）
             inner = "".join(
                 f'<p style="{s["summary_text"]}">{_esc(p["text"])}</p>'
                 for p in paras
@@ -68,43 +65,51 @@ def render_html(blocks: list, style: dict) -> str:
             parts.append(f'<div style="{s["body_block"]}">{inner}</div>')
 
         elif btype == "image":
+            # 层级：section > div > img（3层）
             src = _esc(block.get("src", ""))
             caption = block.get("caption")
-            img_tag = (
-                f'<img src="{src}" data-local-src="{src}" '
-                f'style="{s["image"]}" />'
-            )
             cap_html = ""
             if caption:
                 cap_html = f'<p style="{s["caption"]}">{_esc(caption)}</p>'
             parts.append(
                 f'<div style="{s["image_block"]}">'
-                f'{img_tag}{cap_html}'
+                f'<img src="{src}" data-local-src="{src}" style="{s["image"]}" />'
+                f'{cap_html}'
                 f'</div>'
             )
 
         elif btype == "gallery":
             images = block.get("images", [])
             shared_caption = block.get("shared_caption")
+            if not images:
+                continue
+
+            # 双图并排：inline-block 方案，每行2张，超出自动换行
+            # 层级：section > div > span > img（4层，但 span 是行内元素，微信可接受）
             imgs_html = ""
-            for img in images:
+            for idx, img in enumerate(images):
                 src = _esc(img.get("src", ""))
                 cap = img.get("caption")
-                cap_html = f'<p style="{s["caption"]}">{_esc(cap)}</p>' if cap and cap != shared_caption else ""
+                item_style = s["gallery_item_first"] if idx % 2 == 0 else s["gallery_item_rest"]
+                cap_html = ""
+                if cap and cap != shared_caption:
+                    cap_html = f'<p style="{s["caption"]}">{_esc(cap)}</p>'
                 imgs_html += (
-                    f'<div style="{s["gallery_item"]}">'
+                    f'<span style="{item_style}">'
                     f'<img src="{src}" data-local-src="{src}" style="{s["gallery_image"]}" />'
                     f'{cap_html}'
-                    f'</div>'
+                    f'</span>'
                 )
+
             shared_cap_html = ""
             if shared_caption:
                 shared_cap_html = f'<p style="{s["caption"]}">{_esc(shared_caption)}</p>'
+
             parts.append(
-                f'<div style="{s["gallery_block"]}">'
-                f'<div style="{s["gallery_row"]}">{imgs_html}</div>'
-                f'{shared_cap_html}'
+                f'<div style="{s["gallery_row"]}">'
+                f'{imgs_html}'
                 f'</div>'
+                f'{shared_cap_html}'
             )
 
         elif btype == "end":
