@@ -1,9 +1,9 @@
 ---
-name: opencrow-wechat-post-workflow
-description: Coordinate OpenCrow/OpenClaw WeChat Official Account article production when a user submits a project brief, DOCX briefing, article draft, screenshots with revision notes, or asks to create, preview, revise, approve, or post a WeChat public-account article. Use this skill to orchestrate the existing xuan-docx-to-wechat-html skill for HTML generation and baoyu-post-to-wechat skill for sending HTML to the WeChat Official Account draft box, while tracking task status, versions, preview confirmation, and revision loops.
+name: openclaw-wechat-post-workflow
+description: Coordinate OpenClaw WeChat Official Account article production when a user submits a project brief, DOCX briefing, article draft, screenshots with revision notes, or asks to create, preview, revise, approve, or post a WeChat public-account article. Use this skill to orchestrate the existing xuan-docx-to-wechat-html skill for HTML generation and baoyu-post-to-wechat skill for sending HTML to the WeChat Official Account draft box, while tracking task status, versions, preview confirmation, and revision loops.
 ---
 
-# OpenCrow WeChat Post Workflow
+# OpenClaw WeChat Post Workflow
 
 Use this skill as the workflow controller for WeChat Official Account article production. Do not replace the specialist skills:
 

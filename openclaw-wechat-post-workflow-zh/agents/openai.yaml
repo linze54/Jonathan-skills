@@ -1,0 +1,4 @@
+interface:
+  display_name: "OpenClaw 微信公众号推文工作流"
+  short_description: "编排简报到微信公众号草稿的完整流程"
+  default_prompt: "使用这个 skill 将项目简报转成可追踪的微信公众号推文任务，完成 HTML 生成、草稿发送、预览确认、修改循环和待推送状态管理。"
