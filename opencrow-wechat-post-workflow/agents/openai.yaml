@@ -1,0 +1,4 @@
+interface:
+  display_name: "OpenCrow WeChat Post Workflow"
+  short_description: "Orchestrate brief-to-WeChat article workflow"
+  default_prompt: "Use this skill to turn a submitted project brief into a tracked WeChat Official Account draft workflow with HTML generation, draft posting, preview, revision, and approval."
