@@ -1,6 +1,6 @@
 ---
 name: openclaw-wechat-post-workflow
-description: Coordinate OpenClaw WeChat Official Account article production when a user submits a project brief, DOCX briefing, article draft, screenshots with revision notes, or asks to create, preview, revise, approve, or post a WeChat public-account article. Use this skill to orchestrate the existing xuan-docx-to-wechat-html skill for HTML generation and baoyu-post-to-wechat skill for sending HTML to the WeChat Official Account draft box, while tracking task status, versions, preview confirmation, and revision loops.
+description: Coordinate OpenClaw WeChat Official Account article production when a user submits a project brief, DOCX briefing, article draft, screenshots with revision notes, or asks to create, preview, revise, approve, or post a WeChat public-account article. Use this skill to first check the brief for likely typos, wording issues, contradictions, missing context, or unreasonable content, ask whether to adjust, then create a tracked task, notify the configured DingTalk group, and orchestrate xuan-docx-to-wechat-html for HTML generation and baoyu-post-to-wechat for sending HTML to the WeChat Official Account draft box.
 ---
 
 # OpenClaw WeChat Post Workflow
@@ -12,7 +12,7 @@ Use this skill as the workflow controller for WeChat Official Account article pr
 
 ## Core Rule
 
-Always treat each article as a tracked task, not a one-off chat. Create or identify the task before calling either production skill.
+Always treat each article as a tracked task, not a one-off chat. Before creating a new formal task from newly submitted source material, run a preflight brief review and ask whether to adjust possible issues. Create the task only after the requester confirms the material should proceed, with or without adjustments.
 
 Required task fields:
 
@@ -27,6 +27,7 @@ Required task fields:
 - `wechat_draft_id_or_url`
 - `revision_notes`
 - `approval_record`
+- `group_notification_record`
 
 Use the status vocabulary and schema in `references/task-schema.md` when exact fields or status transitions are needed.
 
@@ -35,27 +36,87 @@ Use the status vocabulary and schema in `references/task-schema.md` when exact f
 When the user submits a brief, DOCX, copied text, images, or a request like "help me publish this as a WeChat article":
 
 1. Acknowledge immediately.
-2. Create a task id.
-3. Extract missing operational fields from context when possible.
-4. Ask only for fields that block execution, such as missing source material, target account, preview recipient, or publication deadline.
-5. Set status to `received`.
+2. Review the submitted content for likely typos, awkward wording, contradictions, missing facts, unclear names, date/time issues, and unreasonable claims.
+3. Reply with a concise list of possible issues and ask whether to adjust them before production.
+4. Do not create the formal `task_id` yet unless the user explicitly asks to skip review or the content is already approved.
+5. After the user confirms how to handle the issues, create the task id, extract missing operational fields, and proceed.
 
 Suggested acknowledgement:
 
 ```text
-已收到，已创建推文任务 {task_id}。我会先生成公众号排版 HTML，然后发送到公众号草稿箱并发起预览确认。
+已收到。我先检查了简报，发现以下可能需要确认的地方：
+1. ...
+2. ...
+请问是否需要我先按这些建议调整？确认后我再创建推文任务并继续生成公众号排版。
 ```
+
+If no obvious issues are found, still ask for confirmation before task creation:
+
+```text
+已收到。我未发现明显错别字或不合理表述。请确认是否按当前材料创建推文任务并继续生成公众号排版。
+```
+
+## Preflight Brief Review
+
+Run this review before creating a new task:
+
+- Typos, homophones, missing words, duplicate words, and punctuation errors.
+- Awkward wording, overly informal phrasing, or expressions unsuitable for a public account article.
+- Inconsistent project names, organization names, people names, dates, times, locations, or numbers.
+- Missing key event facts, such as time, place, organizer, target audience, activity result, or call to action.
+- Claims that sound exaggerated, unsupported, sensitive, or inappropriate for the organization.
+- Text that should likely be shortened, split, or converted into clearer article sections.
+
+Classify review output as:
+
+- `must_confirm`: likely factual or sensitive issue that needs the requester to confirm.
+- `suggested_edit`: wording, style, or readability improvement that can be applied with permission.
+- `no_issue`: no obvious problem found.
+
+Do not silently rewrite source material before confirmation. If the requester agrees to adjust, summarize the intended corrections first when the changes affect facts, names, dates, or numbers.
+
+After confirmation:
+
+- If the requester approves adjustments, use the corrected material as `source_materials`.
+- If the requester rejects adjustments, preserve the original material.
+- Then create `task_id`, set status to `received`, send the configured group notification, and continue the production sequence.
+
+## Group Notification
+
+After a formal task is created, send exactly one notification message to this group:
+
+```text
+群 ID: cidJ2H2iPXrxZ436MXaO2e20A==
+群名: 测试
+```
+
+Message content:
+
+```text
+{requester_name} 创建了推文《{article_title_or_project_name}》，推文编号：{task_id}。
+```
+
+Rules:
+
+- Use the one-on-one chat counterpart's display name as `requester_name`.
+- Use the article title when known; otherwise use the project name or brief subject.
+- Send the notification only after `task_id` exists.
+- Do not send duplicate notifications for the same `task_id`.
+- Record the result in `group_notification_record`, including target group id, target group name, message text, sent status, sent time, and any error.
+- If the group message tool or channel is unavailable, do not block article production. Record the failure and tell the operator that group notification failed.
 
 ## Production Sequence
 
 Execute the skills in this order:
 
 1. Prepare source material.
-2. Call `xuan-docx-to-wechat-html`.
-3. Validate the returned HTML at a practical level.
-4. Call `baoyu-post-to-wechat`.
-5. Send or request a WeChat preview.
-6. Wait for approval or revision notes.
+2. Confirm preflight review handling and create the task id.
+3. Send the configured group notification.
+4. Call `xuan-docx-to-wechat-html`.
+5. Validate the returned HTML at a practical level.
+6. Call `baoyu-post-to-wechat`.
+7. Send or request a WeChat preview.
+8. Wait for approval or revision notes.
 
 Do not call `baoyu-post-to-wechat` before HTML exists unless the user explicitly asks to post plain text or Markdown.
 
@@ -146,6 +207,7 @@ When multiple projects or reviewers are active:
 Send short progress updates at meaningful milestones:
 
 - `received`
+- `awaiting_preflight_confirmation`
 - `html_generating`
 - `html_generated`
 - `draft_posting`

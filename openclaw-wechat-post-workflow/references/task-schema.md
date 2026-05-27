@@ -16,6 +16,14 @@ Use this reference when orchestrating WeChat Official Account article tasks.
   "html_artifact": "",
   "wechat_draft_id_or_url": "",
   "revision_notes": [],
+  "group_notification_record": {
+    "target_group_id": "cidJ2H2iPXrxZ436MXaO2e20A==",
+    "target_group_name": "测试",
+    "message": "",
+    "sent": false,
+    "sent_at": "",
+    "error": ""
+  },
   "approval_record": {
     "approved": false,
     "approved_by": "",
@@ -27,6 +35,7 @@ Use this reference when orchestrating WeChat Official Account article tasks.
 
 ## Status Vocabulary
 
+- `awaiting_preflight_confirmation`: Source material was received and reviewed, but the requester has not yet confirmed whether to adjust possible issues. A formal task may not exist yet.
 - `received`: Source materials were received and a task exists.
 - `html_generating`: The article is being converted into WeChat-compatible HTML.
 - `html_generated`: HTML exists and is ready to post.
@@ -42,6 +51,14 @@ Use this reference when orchestrating WeChat Official Account article tasks.
 - `failed_preview`: Preview delivery failed.
 
 ## Transition Rules
+
+```text
+awaiting_preflight_confirmation
+-> received
+-> group_notification_sent
+```
+
+Then:
 
 ```text
 received
@@ -88,12 +105,61 @@ failed_preview -> waiting_review
 }
 ```
 
+## Group Notification
+
+Target group:
+
+```text
+群 ID: cidJ2H2iPXrxZ436MXaO2e20A==
+群名: 测试
+```
+
+Message template:
+
+```text
+{requester_name} 创建了推文《{article_title_or_project_name}》，推文编号：{task_id}。
+```
+
+Record format:
+
+```json
+{
+  "target_group_id": "cidJ2H2iPXrxZ436MXaO2e20A==",
+  "target_group_name": "测试",
+  "message": "",
+  "sent": false,
+  "sent_at": "",
+  "error": ""
+}
+```
+
 ## Operator Messages
+
+Preflight issues found:
+
+```text
+已收到。我先检查了简报，发现以下可能需要确认的地方：
+1. ...
+2. ...
+请问是否需要我先按这些建议调整？确认后我再创建推文任务并继续生成公众号排版。
+```
+
+No obvious issues:
+
+```text
+已收到。我未发现明显错别字或不合理表述。请确认是否按当前材料创建推文任务并继续生成公众号排版。
+```
 
 Received:
 
 ```text
 已收到，已创建推文任务 {task_id}。当前状态：待生成 HTML。
+```
+
+Group notification:
+
+```text
+{requester_name} 创建了推文《{article_title_or_project_name}》，推文编号：{task_id}。
 ```
 
 HTML generated:

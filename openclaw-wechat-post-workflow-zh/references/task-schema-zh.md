@@ -16,6 +16,14 @@
   "html_artifact": "",
   "wechat_draft_id_or_url": "",
   "revision_notes": [],
+  "group_notification_record": {
+    "target_group_id": "cidJ2H2iPXrxZ436MXaO2e20A==",
+    "target_group_name": "测试",
+    "message": "",
+    "sent": false,
+    "sent_at": "",
+    "error": ""
+  },
   "approval_record": {
     "approved": false,
     "approved_by": "",
@@ -27,6 +35,7 @@
 
 ## 状态表
 
+- `awaiting_preflight_confirmation`：已收到并检查材料，但发起人尚未确认是否调整可能问题；此时可以尚未创建正式任务。
 - `received`：已收到材料，任务已创建。
 - `html_generating`：正在生成微信公众号兼容 HTML。
 - `html_generated`：HTML 已生成，准备发送草稿。
@@ -42,6 +51,14 @@
 - `failed_preview`：预览发送失败。
 
 ## 状态流转
+
+```text
+awaiting_preflight_confirmation
+-> received
+-> group_notification_sent
+```
+
+然后：
 
 ```text
 received
@@ -88,12 +105,61 @@ failed_preview -> waiting_review
 }
 ```
 
+## 群通知
+
+目标群：
+
+```text
+群 ID: cidJ2H2iPXrxZ436MXaO2e20A==
+群名: 测试
+```
+
+消息模板：
+
+```text
+{requester_name} 创建了推文《{article_title_or_project_name}》，推文编号：{task_id}。
+```
+
+记录格式：
+
+```json
+{
+  "target_group_id": "cidJ2H2iPXrxZ436MXaO2e20A==",
+  "target_group_name": "测试",
+  "message": "",
+  "sent": false,
+  "sent_at": "",
+  "error": ""
+}
+```
+
 ## 常用反馈话术
+
+发现可能问题：
+
+```text
+已收到。我先检查了简报，发现以下可能需要确认的地方：
+1. ...
+2. ...
+请问是否需要我先按这些建议调整？确认后我再创建推文任务并继续生成公众号排版。
+```
+
+未发现明显问题：
+
+```text
+已收到。我未发现明显错别字或不合理表述。请确认是否按当前材料创建推文任务并继续生成公众号排版。
+```
 
 收到材料：
 
 ```text
 已收到，已创建推文任务 {task_id}。当前状态：待生成 HTML。
+```
+
+群通知：
+
+```text
+{requester_name} 创建了推文《{article_title_or_project_name}》，推文编号：{task_id}。
 ```
 
 HTML 已生成：
