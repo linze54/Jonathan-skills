@@ -22,6 +22,10 @@ _ORG_PATTERN = re.compile(r"(社区|街道|委员会|志愿|协会|中心|办事
 _EYEBROW_WORDS = re.compile(
     r"^(活动简报|工作简报|社区简报|活动通讯|工作通讯|简报|通讯|公告|通知|新闻|资讯|动态|快讯|特刊|专刊|第.{1,4}期)$"
 )
+_NOTICE_FIELD_PATTERN = re.compile(
+    r"(活动时间|活动日期|时间|活动地点|地点|地址|参与对象|活动对象|服务对象|招募对象|"
+    r"报名方式|参与方式|报名|扫码|联系人|联系电话|截止|截至|活动安排|活动流程|温馨提示)"
+)
 
 
 def _get_text(para_elem) -> str:
@@ -110,7 +114,7 @@ def _classify_text_para(text, para_elem, doc, para_index) -> dict:
     bold = _is_bold(para_elem)
     length = len(text)
 
-    if "heading" in style_name or "标题" in style_name:
+    if "heading" in style_name or "标题" in style_name or style_name in ("title", "标题"):
         level = 1
         for i in range(1, 7):
             if str(i) in style_name:
@@ -138,6 +142,11 @@ def _classify_text_para(text, para_elem, doc, para_index) -> dict:
         _DATE_PATTERN.search(text) or _ORG_PATTERN.search(text) or length <= 20
     ) and not has_caption_keyword and length <= 80:
         return {"kind": "meta", "text": text}
+
+    # 活动通知常见信息项很短，而且通知稿往往没有图片。
+    # 这些内容必须作为正文保留，不能进入 caption_candidate 后因无图而丢失。
+    if _NOTICE_FIELD_PATTERN.search(text):
+        return {"kind": "body", "text": text, "bold": bold, "centered": centered}
 
     # 图注识别优先：包含图注关键词的短文本
     caption_keywords = ["进行", "介绍", "现场", "打卡", "留念", "拍照", "展示", "创作", "绘制", "手绘"]

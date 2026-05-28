@@ -161,6 +161,15 @@ def get_styles() -> dict:
             "width:100%;"
         ),
 
+        # PNG 素材装饰：保持 img 原始标签 + 内联样式，便于微信兼容
+        "asset_divider": (
+            "display:block;"
+            "width:100%;"
+            "height:auto;"
+            "border:none;"
+            "margin:14px 0;"
+        ),
+
         # 文末收束区 - 微信兼容版：父容器text-align:center实现居中
         "end_block": (
             "text-align:center;"  # 父容器居中，最稳的微信兼容方式

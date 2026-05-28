@@ -25,6 +25,10 @@ _OVERVIEW_SIGNALS = re.compile(
     r"圆满结束|圆满举行|成功举办|成功举行|顺利举办|顺利举行|顺利开展|"
     r"联合.*举办|联合.*开展|联合.*举行)"
 )
+_NOTICE_FIELD_SIGNALS = re.compile(
+    r"(活动时间|活动日期|时间|活动地点|地点|地址|参与对象|活动对象|服务对象|招募对象|"
+    r"报名方式|参与方式|报名|扫码|联系人|联系电话|截止|截至|活动安排|活动流程|温馨提示)"
+)
 
 
 def _is_overview_para(text: str) -> bool:
@@ -34,6 +38,10 @@ def _is_overview_para(text: str) -> bool:
     if _OVERVIEW_SIGNALS.search(text):
         return True
     return False
+
+
+def _is_notice_field_para(text: str) -> bool:
+    return bool(_NOTICE_FIELD_SIGNALS.search(text))
 
 
 def _should_gallery(images: list) -> bool:
@@ -155,6 +163,9 @@ def build_structure(elements: list, rel_to_path: dict) -> list:
                         summary_buffer.append({"text": text, "bold": False, "centered": False})
                     else:
                         body_buffer.append({"text": text, "bold": elem.get("bold", False), "centered": elem.get("centered", False)})
+                elif _is_notice_field_para(text):
+                    flush_summary()
+                    body_buffer.append({"text": text, "bold": elem.get("bold", False), "centered": elem.get("centered", False)})
                 elif len(text) <= 100:
                     # 短文本（副标题/项目名称/推文标题）→ 归为 preamble，不渲染到正文
                     blocks.append({"type": "preamble", "text": text})

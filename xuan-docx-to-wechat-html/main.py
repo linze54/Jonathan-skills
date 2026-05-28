@@ -22,11 +22,14 @@ from utils.image_extractor import extract_images
 from utils.caption_matcher import match_captions
 from utils.structure_builder import build_structure
 from utils.html_renderer import render_html
+from utils.article_classifier import classify_article_type
+from utils.asset_manifest import default_manifest_path, load_asset_library, public_asset_summary
 from docx import Document
 
 
 _STYLES = {
     "community_wechat_brief_style": "templates.community_wechat_brief_style",
+    "activity_notice_style": "templates.activity_notice_style",
 }
 
 
@@ -37,6 +40,12 @@ def _load_style(style_name: str) -> dict:
     import importlib
     mod = importlib.import_module(module_path)
     return mod.get_styles()
+
+
+def _style_for_article_type(article_type: str) -> str:
+    if article_type == "activity_notice":
+        return "activity_notice_style"
+    return "community_wechat_brief_style"
 
 
 def _find_title(blocks: list) -> str:
@@ -83,6 +92,10 @@ def _extract_document_info(blocks: list) -> dict:
         "author_info": "",
         "article_title": ""
     }
+    for b in blocks:
+        if b.get("type") == "title":
+            result["article_title"] = b.get("text", "").strip()
+            break
     
     if not filtered_meta_texts:
         return result
@@ -102,13 +115,21 @@ def _extract_document_info(blocks: list) -> dict:
             continue
         
         # 判断是否为活动标题
-        if ("社区" in text and "活动" in text) or ("公益" in text and "活动" in text):
+        if not result["article_title"] and (("社区" in text and "活动" in text) or ("公益" in text and "活动" in text)):
             result["article_title"] = text
             continue
         
         # 如果还没有找到活动标题，且文本包含"活动"
         if not result["article_title"] and "活动" in text:
             result["article_title"] = text
+
+    if not result["article_title"]:
+        for b in blocks:
+            if b.get("type") == "title":
+                title = b.get("text", "").strip()
+                if title:
+                    result["article_title"] = title
+                    break
     
     return result
 
@@ -119,12 +140,12 @@ def _find_article_title(blocks: list) -> str:
     只返回真正的推文标题，不包含文档类型和作者信息
     """
     doc_info = _extract_document_info(blocks)
-    return doc_info.get("article_title", "")
+    return doc_info.get("article_title", "") or _find_title(blocks)
 
 
 def _find_summary_candidate(blocks: list) -> str:
     for b in blocks:
-        if b["type"] == "body":
+        if b["type"] in ("summary", "body"):
             paras = b.get("paragraphs", [])
             for p in paras:
                 text = p.get("text", "").strip()
@@ -172,7 +193,9 @@ def main():
     parser = argparse.ArgumentParser(description="Convert .docx to WeChat-compatible HTML")
     parser.add_argument("--input", required=True, help=".docx 文件路径")
     parser.add_argument("--output-dir", default=None, help="输出目录（默认：docx 同目录下的 output/）")
-    parser.add_argument("--style", default="community_wechat_brief_style", help="渲染风格名称")
+    parser.add_argument("--style", default="auto", help="渲染风格名称：auto / community_wechat_brief_style / activity_notice_style")
+    parser.add_argument("--article-type", default="auto", choices=["auto", "activity_notice", "activity_briefing"], help="推文类型：auto / activity_notice / activity_briefing")
+    parser.add_argument("--asset-manifest", default=None, help="PNG 素材库根 manifest.json 路径（默认：skill 平级 manifest/manifest.json）")
     parser.add_argument("--debug", action="store_true", help="输出 parsed.json 中间结构")
     parser.add_argument("--keep-original-text", action="store_true", default=True, help="保留原文措辞（默认开启）")
     args = parser.parse_args()
@@ -204,11 +227,31 @@ def main():
         blocks = build_structure(elements, rel_to_path)
 
         # 5. 渲染 HTML
-        style = _load_style(args.style)
         doc_info = _extract_document_info(blocks)
         article_title = doc_info.get("article_title", "")
         author_info = doc_info.get("author_info", "")
-        html_content = render_html(blocks, style, article_title, author_info)
+        images_count = _count_images(blocks)
+        classification = classify_article_type(blocks, doc_info, images_count)
+        article_type = classification["article_type"]
+        if args.article_type != "auto":
+            article_type = args.article_type
+            classification["article_type"] = article_type
+            classification["forced"] = True
+
+        style_name = _style_for_article_type(article_type) if args.style == "auto" else args.style
+        style = _load_style(style_name)
+
+        manifest_path = args.asset_manifest or default_manifest_path(_SKILL_DIR)
+        asset_library = load_asset_library(manifest_path, article_type)
+        html_content = render_html(
+            blocks,
+            style,
+            article_title,
+            author_info,
+            article_type=article_type,
+            asset_library=asset_library,
+        )
+        asset_summary = public_asset_summary(asset_library)
 
         # 6. 写出文件
         output_html = os.path.join(output_dir, "article_wechat.html")
@@ -220,7 +263,12 @@ def main():
             output_json = os.path.join(output_dir, "parsed.json")
             with open(output_json, "w", encoding="utf-8") as f:
                 json.dump(
-                    {"elements": elements, "blocks": blocks},
+                    {
+                        "elements": elements,
+                        "blocks": blocks,
+                        "classification": classification,
+                        "asset_library": asset_summary,
+                    },
                     f,
                     ensure_ascii=False,
                     indent=2,
@@ -243,9 +291,12 @@ def main():
             "author_info": doc_info.get("author_info", ""),  # 作者/机构信息
             "summary_candidate": _find_summary_candidate(blocks),
             "first_image_candidate": _find_first_image(blocks),
-            "images_count": _count_images(blocks),
+            "images_count": images_count,
             "captions_count": _count_captions(blocks),
-            "style_name": args.style,
+            "article_type": article_type,
+            "classification": classification,
+            "asset_library": asset_summary,
+            "style_name": style_name,
         }
         print(json.dumps(result, ensure_ascii=False, indent=2))
 

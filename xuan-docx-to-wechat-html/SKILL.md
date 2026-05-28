@@ -8,6 +8,39 @@ allowed-tools: Bash
 
 将本地 Word 文档结构化解析，提取图片、识别图注，生成适合微信公众号正文的 HTML 文件。
 
+## 推文类型与素材库规则
+
+默认使用自动类型判断：
+
+```text
+读取原始材料
+→ 提取关键信息
+→ 判断推文类型：activity_notice / activity_briefing
+→ 读取平级 manifest/manifest.json
+→ 读取 common manifest + 对应类型 manifest
+→ 按对应风格和本地 PNG 素材生成微信兼容 HTML
+```
+
+类型规则：
+
+- `activity_notice`：活动通知/招募/报名类推文。重点突出时间、地点、对象、报名方式、截止时间。通知稿通常没有现场图片，因此应使用 `activity_notice` 素材库增加信息模块装饰。
+- `activity_briefing`：活动简报/回顾/总结类推文。重点突出活动过程、现场图片、参与情况、成果和反馈。沿用社区活动简报风格。
+
+素材库默认位置：
+
+```text
+<xuan-skill父目录>/manifest/manifest.json
+```
+
+只允许使用：
+
+- `common` 通用素材
+- 当前推文类型对应目录素材
+
+不要跨类型混用素材。活动通知不要使用简报成果章，活动简报不要使用报名按钮，除非 manifest 明确允许。
+
+所有 HTML 必须保持微信公众号兼容的原始写法：内联 style、普通 `section/div/table/p/img`，不使用 flex、grid、脚本、外链 CSS、复杂定位或背景图。
+
 ## 使用前提
 
 安装依赖（首次使用）：
@@ -26,7 +59,7 @@ pip install -r "$SKILL_DIR/requirements.txt"
 2. 确认后运行：
 
 ```bash
-python "$SKILL_DIR/main.py" --input <docx文件路径> --output-dir <输出目录> --style community_wechat_brief_style
+python "$SKILL_DIR/main.py" --input <docx文件路径> --output-dir <输出目录>
 ```
 
 debug 模式：
