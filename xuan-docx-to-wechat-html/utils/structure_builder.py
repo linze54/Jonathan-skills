@@ -21,8 +21,8 @@ _PROCESS_OPENERS = re.compile(
 )
 
 _OVERVIEW_SIGNALS = re.compile(
-    r"(为深入|为进一步|为贯彻|为落实|为响应|为推进|为加强|为丰富|为提升|"
-    r"圆满结束|圆满举行|成功举办|成功举行|顺利举办|顺利举行|"
+    r"(为深化|为深入|为进一步|为贯彻|为落实|为响应|为推进|为加强|为丰富|为提升|为深化校地融合|"
+    r"圆满结束|圆满举行|成功举办|成功举行|顺利举办|顺利举行|顺利开展|"
     r"联合.*举办|联合.*开展|联合.*举行)"
 )
 
@@ -92,6 +92,8 @@ def build_structure(elements: list, rel_to_path: dict) -> list:
     title_text = None
     summary_done = False  # 是否已完成 summary 收集
     summary_buffer = []   # 总述段落缓冲
+    last_caption = None   # 临时存储的 caption
+    first_image_seen = False  # 是否已遇到第一张图片
 
     def flush_body():
         if body_buffer:
@@ -103,7 +105,7 @@ def build_structure(elements: list, rel_to_path: dict) -> list:
         if summary_buffer:
             blocks.append({"type": "summary", "paragraphs": list(summary_buffer)})
             summary_buffer.clear()
-        summary_done = True
+            summary_done = True
 
     while i < n:
         elem = elements[i]
@@ -113,8 +115,13 @@ def build_structure(elements: list, rel_to_path: dict) -> list:
             i += 1
             continue
 
-        # meta 直接丢弃
+        # meta 处理：推文标题和元信息
         if kind == "meta":
+            text = elem["text"].strip()
+            if text:
+                # 将meta添加到blocks中，类型为"meta"
+                blocks.append({"type": "meta", "text": text})
+            # 注意：空的meta不添加到blocks中，避免生成空div
             i += 1
             continue
 
@@ -124,6 +131,9 @@ def build_structure(elements: list, rel_to_path: dict) -> list:
             if not any(b["type"] == "title" for b in blocks):
                 title_text = elem["text"]
                 blocks.append({"type": "title", "text": elem["text"]})
+            elif not first_image_seen:
+                # 第一张图片之前的后续 heading 归为 preamble（副标题/项目名称）
+                blocks.append({"type": "preamble", "text": elem["text"]})
             else:
                 body_buffer.append({"text": elem["text"], "bold": True, "centered": elem.get("centered", False)})
             i += 1
@@ -137,8 +147,23 @@ def build_structure(elements: list, rel_to_path: dict) -> list:
 
             has_title = any(b["type"] == "title" for b in blocks)
 
-            if has_title and not summary_done:
-                # 在标题之后、summary 收集阶段
+            # 在第一张图片之前的区域：区分前言/副标题 vs 导语
+            if not first_image_seen and has_title:
+                if _is_overview_para(text):
+                    # 导语段落（包含活动背景/目的/概述关键词）→ 保留为 summary
+                    if not summary_done:
+                        summary_buffer.append({"text": text, "bold": False, "centered": False})
+                    else:
+                        body_buffer.append({"text": text, "bold": elem.get("bold", False), "centered": elem.get("centered", False)})
+                elif len(text) <= 100:
+                    # 短文本（副标题/项目名称/推文标题）→ 归为 preamble，不渲染到正文
+                    blocks.append({"type": "preamble", "text": text})
+                else:
+                    # 长文本但不是导语→ 正常 body
+                    flush_summary()
+                    body_buffer.append({"text": text, "bold": elem.get("bold", False), "centered": elem.get("centered", False)})
+            elif (has_title or i < 10) and not summary_done:
+                # 在标题之后、summary 收集阶段（放宽条件：文档前部即使没有标题也尝试收集summary）
                 if _is_overview_para(text):
                     # 总述段落 → 进入 summary_buffer
                     summary_buffer.append({"text": text, "bold": False, "centered": False})
@@ -151,10 +176,13 @@ def build_structure(elements: list, rel_to_path: dict) -> list:
             i += 1
 
         elif kind == "caption_candidate":
-            body_buffer.append({"text": elem["text"], "bold": False, "centered": False})
+            # 临时存储 caption，等待后续图片使用
+            last_caption = elem["text"]
             i += 1
 
         elif kind == "image":
+            if not first_image_seen:
+                first_image_seen = True
             flush_summary()
             flush_body()
             img_elems = []
@@ -172,6 +200,11 @@ def build_structure(elements: list, rel_to_path: dict) -> list:
                 else:
                     break
 
+            # 如果有临时存储的 caption，为第一个图片设置
+            if last_caption and img_elems:
+                img_elems[0]["caption"] = last_caption
+                last_caption = None
+            
             row_blocks = _group_images_by_row(img_elems, rel_to_path)
             blocks.extend(row_blocks)
             i = j

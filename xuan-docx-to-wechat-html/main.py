@@ -40,10 +40,86 @@ def _load_style(style_name: str) -> dict:
 
 
 def _find_title(blocks: list) -> str:
+    """查找文档标题（兼容旧版本）"""
     for b in blocks:
         if b["type"] == "title":
             return b["text"]
     return ""
+
+
+def _extract_document_info(blocks: list) -> dict:
+    """提取文档信息
+    
+    从文档中提取以下信息：
+    1. 文档类型（如"活 动 简 报"）
+    2. 作者/机构信息（如"成都同德社会工作服务中心 2026年4月18日"）
+    3. 真正的推文标题（如"长林盘社区'公益一把伞·共治暖人心'共享雨伞创作活动圆满结束"）
+    
+    返回格式：
+    {
+        "doc_type": "活 动 简 报",
+        "author_info": "成都同德社会工作服务中心 2026年4月18日",
+        "article_title": "长林盘社区'公益一把伞·共治暖人心'共享雨伞创作活动圆满结束"
+    }
+    """
+    # 查找type=="meta"的块
+    meta_texts = []
+    for b in blocks:
+        if b["type"] == "meta":
+            text = b.get("text", "").strip()
+            if text:
+                meta_texts.append(text)
+    
+    # 过滤掉图注等非标题meta
+    filtered_meta_texts = []
+    for text in meta_texts:
+        # 跳过可能是图注的文本
+        if any(word in text for word in ["进行", "介绍", "现场", "打卡", "留念", "主持人", "拍照"]):
+            continue
+        filtered_meta_texts.append(text)
+    
+    result = {
+        "doc_type": "",
+        "author_info": "",
+        "article_title": ""
+    }
+    
+    if not filtered_meta_texts:
+        return result
+    
+    # 分析meta文本
+    for i, text in enumerate(filtered_meta_texts):
+        # 先判断是否为文档类型（检查去除空格后的文本）
+        text_no_space = text.replace(" ", "")
+        if "简报" in text_no_space or "报告" in text_no_space or "总结" in text_no_space:
+            result["doc_type"] = text
+            continue
+        
+        # 判断是否为作者/机构信息
+        if ("中心" in text or "公司" in text or "工作室" in text or 
+            ("年" in text and "月" in text)):
+            result["author_info"] = text
+            continue
+        
+        # 判断是否为活动标题
+        if ("社区" in text and "活动" in text) or ("公益" in text and "活动" in text):
+            result["article_title"] = text
+            continue
+        
+        # 如果还没有找到活动标题，且文本包含"活动"
+        if not result["article_title"] and "活动" in text:
+            result["article_title"] = text
+    
+    return result
+
+
+def _find_article_title(blocks: list) -> str:
+    """识别真正的推文标题（用于HTML渲染）
+    
+    只返回真正的推文标题，不包含文档类型和作者信息
+    """
+    doc_info = _extract_document_info(blocks)
+    return doc_info.get("article_title", "")
 
 
 def _find_summary_candidate(blocks: list) -> str:
@@ -129,7 +205,10 @@ def main():
 
         # 5. 渲染 HTML
         style = _load_style(args.style)
-        html_content = render_html(blocks, style)
+        doc_info = _extract_document_info(blocks)
+        article_title = doc_info.get("article_title", "")
+        author_info = doc_info.get("author_info", "")
+        html_content = render_html(blocks, style, article_title, author_info)
 
         # 6. 写出文件
         output_html = os.path.join(output_dir, "article_wechat.html")
@@ -148,6 +227,10 @@ def main():
                     default=str,
                 )
 
+        # 提取文档信息
+        doc_info = _extract_document_info(blocks)
+        article_title = _find_article_title(blocks)
+        
         result = {
             "status": "success",
             "input_file": input_file,
@@ -155,6 +238,9 @@ def main():
             "output_images_dir": os.path.join(output_dir, "images"),
             "output_json": output_json,
             "title": _find_title(blocks),
+            "article_title": article_title,  # 真正的推文标题（用于HTML渲染）
+            "doc_type": doc_info.get("doc_type", ""),  # 文档类型
+            "author_info": doc_info.get("author_info", ""),  # 作者/机构信息
             "summary_candidate": _find_summary_candidate(blocks),
             "first_image_candidate": _find_first_image(blocks),
             "images_count": _count_images(blocks),

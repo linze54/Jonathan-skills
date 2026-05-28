@@ -82,7 +82,19 @@ def _extract_images_from_para(para_elem):
                 height_emu = int(extent.get("cy", 0))
                 break
             parent = parent.getparent()
-        images.append({"rel_id": rel_id, "width_emu": width_emu, "height_emu": height_emu})
+        # 读取 Word 中图片的裁剪信息 (srcRect)
+        crop = None
+        blipFill = blip.getparent()
+        if blipFill is not None:
+            srcRect = blipFill.find("{%s}srcRect" % NS_A)
+            if srcRect is not None:
+                crop = {
+                    "l": int(srcRect.get("l", 0)),
+                    "r": int(srcRect.get("r", 0)),
+                    "t": int(srcRect.get("t", 0)),
+                    "b": int(srcRect.get("b", 0)),
+                }
+        images.append({"rel_id": rel_id, "width_emu": width_emu, "height_emu": height_emu, "crop": crop})
     same_row = len(images) > 1
     for img in images:
         img["same_row"] = same_row
@@ -113,25 +125,55 @@ def _classify_text_para(text, para_elem, doc, para_index) -> dict:
             return {"kind": "meta", "text": text}
         return {"kind": "heading", "text": text, "level": 2, "bold": True, "centered": centered}
 
-    # 机构名+日期组合，无论位置都视为 meta
-    if _DATE_PATTERN.search(text) and _ORG_PATTERN.search(text):
+    # 机构名+日期组合，短文本视为 meta（长文本可能是包含日期的正文导语）
+    if _DATE_PATTERN.search(text) and _ORG_PATTERN.search(text) and length <= 80:
         return {"kind": "meta", "text": text}
 
     # 早期居中段落：日期、机构名、或极短文本
+    # 但排除可能是图注的文本
+    caption_keywords = ["进行", "介绍", "现场", "打卡", "留念", "拍照", "展示", "创作", "绘制", "手绘"]
+    has_caption_keyword = any(keyword in text for keyword in caption_keywords)
+    
     if para_index < 8 and centered and (
         _DATE_PATTERN.search(text) or _ORG_PATTERN.search(text) or length <= 20
-    ):
+    ) and not has_caption_keyword and length <= 80:
         return {"kind": "meta", "text": text}
 
-    # Caption candidate
-    if (
+    # 图注识别优先：包含图注关键词的短文本
+    caption_keywords = ["进行", "介绍", "现场", "打卡", "留念", "拍照", "展示", "创作", "绘制", "手绘"]
+    has_caption_keyword = any(keyword in text for keyword in caption_keywords)
+    
+    if has_caption_keyword and length <= 30 and para_index > 3:
+        return {"kind": "caption_candidate", "text": text, "para_index": para_index}
+    
+    # 活动标题识别：更精确的识别规则
+    # 真正的活动标题通常包含"活动"且以"圆满结束"、"成功举办"等结尾
+    # 排除包含"介绍了"、"讲解了"等动词的正文内容
+    title_indicators = ["圆满结束", "成功举办", "顺利开展", "正式启动", "拉开帷幕"]
+    body_indicators = ["介绍了", "讲解了", "表示", "强调", "指出", "认为"]
+    
+    is_likely_title = (
+        "活动" in text 
+        and 10 <= length <= 100 
+        and para_index < 10
+        and any(indicator in text for indicator in title_indicators)
+        and not any(indicator in text for indicator in body_indicators)
+    )
+    
+    if is_likely_title:
+        return {"kind": "meta", "text": text}
+    
+    # Caption candidate - 基本版
+    is_caption_candidate = (
         length <= 50
         and not bold
         and not _BODY_OPENERS.match(text)
         and not _SECTION_HEADER.search(text)
         and not _DATE_PATTERN.search(text)
         and text.count("。") + text.count("！") + text.count("？") == 0
-    ):
+    )
+    
+    if is_caption_candidate:
         return {"kind": "caption_candidate", "text": text, "para_index": para_index}
 
     return {"kind": "body", "text": text, "bold": bold, "centered": centered}
